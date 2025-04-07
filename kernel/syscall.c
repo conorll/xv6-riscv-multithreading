@@ -12,10 +12,20 @@ int
 fetchaddr(uint64 addr, uint64 *ip)
 {
   struct proc *p = myproc();
-  if(addr >= p->sz || addr+sizeof(uint64) > p->sz) // both tests needed, in case of overflow
+  struct process *pr = p->process;
+
+  acquire(&pr->lock);
+
+  // both tests needed, in case of overflow 
+  if(addr >= pr->sz || addr+sizeof(uint64) > pr->sz) {
+    release(&pr->lock);
     return -1;
-  if(copyin(p->pagetable, (char *)ip, addr, sizeof(*ip)) != 0)
+  }
+  if(copyin(pr->pagetable, (char *)ip, addr, sizeof(*ip)) != 0) {
+    release(&pr->lock);
     return -1;
+  }
+  release(&pr->lock);
   return 0;
 }
 
@@ -25,7 +35,11 @@ int
 fetchstr(uint64 addr, char *buf, int max)
 {
   struct proc *p = myproc();
-  if(copyinstr(p->pagetable, buf, addr, max) < 0)
+  struct process *pr = p->process;
+  acquire(&pr->lock);
+  int tmp = copyinstr(pr->pagetable, buf, addr, max);
+  release(&pr->lock);
+  if(tmp < 0)
     return -1;
   return strlen(buf);
 }

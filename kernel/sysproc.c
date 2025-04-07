@@ -40,10 +40,15 @@ sys_sbrk(void)
 {
   uint64 addr;
   int n;
+  struct proc *p = myproc();
+  struct process *pr = p->process;
 
   argint(0, &n);
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
+  acquire(&pr->lock);
+  addr = pr->sz;
+  int tmp = growproc(n);
+  release(&pr->lock);
+  if(tmp < 0)
     return -1;
   return addr;
 }

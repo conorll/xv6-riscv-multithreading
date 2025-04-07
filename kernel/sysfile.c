@@ -481,6 +481,7 @@ sys_pipe(void)
   struct file *rf, *wf;
   int fd0, fd1;
   struct proc *p = myproc();
+  struct process *pr = p->process;
 
   argaddr(0, &fdarray);
   if(pipealloc(&rf, &wf) < 0)
@@ -493,8 +494,11 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
-  if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
-     copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+  acquire(&pr->lock);
+  int ret = (copyout(pr->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
+     copyout(pr->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0);
+  release(&pr->lock);
+  if(ret){
     p->ofile[fd0] = 0;
     p->ofile[fd1] = 0;
     fileclose(rf);

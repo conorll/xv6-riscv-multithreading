@@ -88,13 +88,17 @@ int
 filestat(struct file *f, uint64 addr)
 {
   struct proc *p = myproc();
+  struct process *pr = p->process;
   struct stat st;
   
   if(f->type == FD_INODE || f->type == FD_DEVICE){
     ilock(f->ip);
     stati(f->ip, &st);
     iunlock(f->ip);
-    if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)
+    acquire(&pr->lock);
+    int tmp = copyout(pr->pagetable, addr, (char *)&st, sizeof(st));
+    release(&pr->lock);
+    if(tmp < 0)
       return -1;
     return 0;
   }
