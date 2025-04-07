@@ -26,15 +26,12 @@ uservec:
         # in supervisor mode, but with a
         # user page table.
         #
-
-        # save user a0 in sscratch so
-        # a0 can be used to get at TRAPFRAME.
-        csrw sscratch, a0
-
-        # each process has a separate p->trapframe memory area,
-        # but it's mapped to the same virtual address
-        # (TRAPFRAME) in every process's user page table.
-        li a0, TRAPFRAME
+        # sscratch stores the user address of the current proc's trapframe
+        #
+        
+	# swap a0 and sscratch
+        # so that a0 is the trapframe user address
+        csrrw a0, sscratch, a0
         
         # save the user registers in TRAPFRAME
         sd ra, 40(a0)
@@ -102,14 +99,18 @@ userret:
         # userret(pagetable)
         # called by usertrapret() in trap.c to
         # switch from kernel to user.
-        # a0: user page table, for satp.
+        # a0: user address of the current proc's trapframe
+        # a1: user page table, for satp.
 
         # switch to the user page table.
         sfence.vma zero, zero
-        csrw satp, a0
+        csrw satp, a1
         sfence.vma zero, zero
 
-        li a0, TRAPFRAME
+        # put the saved user a0 in sscratch, so we
+        # can swap it with our a0 (trapframe user address) in the last step.
+        ld t0, 112(a0)
+        csrw sscratch, t0
 
         # restore all but a0 from TRAPFRAME
         ld ra, 40(a0)
@@ -143,8 +144,8 @@ userret:
         ld t5, 272(a0)
         ld t6, 280(a0)
 
-	# restore user a0
-        ld a0, 112(a0)
+       	# restore user a0, and save trapframe user address in sscratch
+        csrrw a0, sscratch, a0 
         
         # return to user mode and user pc.
         # usertrapret() set up sstatus and sepc.

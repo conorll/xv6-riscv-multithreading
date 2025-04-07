@@ -159,7 +159,7 @@ freeproc(struct proc *p)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
   if(p->pagetable)
-    proc_freepagetable(p->pagetable, p->sz);
+    proc_freepagetable((int) (p - proc), p->pagetable, p->sz);
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
@@ -193,9 +193,9 @@ proc_pagetable(struct proc *p)
     return 0;
   }
 
-  // map the trapframe page just below the trampoline page, for
-  // trampoline.S.
-  if(mappages(pagetable, TRAPFRAME, PGSIZE,
+  // map the trapframe page into the user pagetable, for
+  // trampoline.S
+  if(mappages(pagetable, UTRAPFRAME((int) (p - proc)), PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
     uvmfree(pagetable, 0);
@@ -208,10 +208,10 @@ proc_pagetable(struct proc *p)
 // Free a process's page table, and free the
 // physical memory it refers to.
 void
-proc_freepagetable(pagetable_t pagetable, uint64 sz)
+proc_freepagetable(int trapframeindex, pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
-  uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, UTRAPFRAME(trapframeindex), 1, 0);
   uvmfree(pagetable, sz);
 }
 

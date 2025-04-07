@@ -54,6 +54,9 @@
 //   fixed-size stack
 //   expandable heap
 //   ...
-//   TRAPFRAME (p->trapframe, used by the trampoline)
-//   TRAMPOLINE (the same page as in the kernel)
-#define TRAPFRAME (TRAMPOLINE - PGSIZE)
+
+// map trapframes beneath the trampoline in user space
+// each proc has its own unique trapframe position across all processes
+// only the trapframes of the current process are mapped
+// the rest remain unmapped for the current process
+#define UTRAPFRAME(p) (TRAMPOLINE - ((p)+1)* PGSIZE)
