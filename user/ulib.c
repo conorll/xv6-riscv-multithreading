@@ -1,6 +1,7 @@
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "kernel/fcntl.h"
+#include "kernel/riscv.h"
 #include "user/user.h"
 
 //
@@ -144,4 +145,27 @@ void *
 memcpy(void *dst, const void *src, uint n)
 {
   return memmove(dst, src, n);
+}
+
+int
+thread_create(void *start_routine)
+{
+  void *stack;
+  stack = malloc(PGSIZE);
+
+  return clone((uint64)start_routine, (uint64)stack);
+}
+
+int
+thread_join(void)
+{
+  int ret;
+  void *stack;
+
+  ret = join((uint64)&stack);
+
+  if (ret != -1)
+    free(stack);
+  
+  return ret;
 }

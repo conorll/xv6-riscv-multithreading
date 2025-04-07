@@ -410,6 +410,58 @@ fork(void)
   return pid;
 }
 
+int
+clone(uint64 fcn, uint64 stack)
+{
+  int i, pid;
+
+  struct proc *np;
+  struct proc *p = myproc();
+  struct process *pr = p->process;
+
+  if (PGROUNDDOWN(stack) != stack)
+  panic("clone: user stack not page aligned");
+
+  acquire(&pr->lock);
+  np = allocproc(pr);
+  release(&pr->lock);
+
+  if (np == 0)
+    return -1;
+  
+  *(np->trapframe) = *(p->trapframe);
+
+  // sp points to the top of the stack
+  np->trapframe->sp = stack + PGSIZE;
+  np->trapframe->epc = fcn;
+  // Cause clone to return 0 in the child.
+  np->trapframe->a0 = 0;
+
+  np->stack = stack;
+
+  // increment reference counts on open file descriptors.
+  for(i = 0; i < NOFILE; i++)
+    if(p->ofile[i])
+      np->ofile[i] = filedup(p->ofile[i]);
+  np->cwd = idup(p->cwd);
+
+  safestrcpy(np->name, p->name, sizeof(p->name));
+
+  pid = np->pid;
+
+  release(&np->lock);
+
+  acquire(&wait_lock);
+  np->parent = p;
+  release(&wait_lock);
+
+  acquire(&np->lock);
+  np->state = RUNNABLE;
+  release(&np->lock);
+
+  return pid;
+}
+
 // Pass p's abandoned children to init.
 // Caller must hold wait_lock.
 void
@@ -527,6 +579,67 @@ wait(uint64 addr)
         acquire(&p->process->lock);
         int ret = copyout(p->process->pagetable, addr, (char *)&pp->xstate,
                               sizeof(pp->xstate));
+        release(&p->process->lock);
+        if (ret < 0) {
+          release(&pp->lock);
+          release(&wait_lock);
+          return -1;
+        }
+      }
+      freeproc(pp);
+      release(&pp->lock);
+      release(&wait_lock);
+      return pid;
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || killed(p)){
+      release(&wait_lock);
+      return -1;
+    }
+    
+    // Wait for a child to exit.
+    sleep(p, &wait_lock);  //DOC: wait-sleep
+  }
+}
+
+int
+join(uint64 stack)
+{
+  struct proc *pp;
+  int havekids, pid;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(pp = proc; pp < &proc[NPROC]; pp++){
+      if(pp->parent != p)
+        continue;
+
+      // make sure the child isn't still in exit() or swtch().
+      acquire(&pp->lock);
+
+      if (pp->process != p->process) {
+        release(&pp->lock);
+        continue;
+      }
+
+      havekids = 1;
+
+      if(pp->state != ZOMBIE) {
+        release(&pp->lock);
+        continue;
+      }
+
+      // Found one.
+      pid = pp->pid;
+      if(stack != 0) {
+        acquire(&p->process->lock);
+        int ret = copyout(p->process->pagetable, stack, (char *)&pp->stack,
+                              sizeof(pp->stack));
         release(&p->process->lock);
         if (ret < 0) {
           release(&pp->lock);

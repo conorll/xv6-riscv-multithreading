@@ -108,6 +108,8 @@ void            procdump(void);
 struct process* allocprocess(void);
 void            freeprocess(struct process *p);
 void            kill_neighbor_threads(void);
+int             clone(uint64 fcn, uint64 stack);
+int             join(uint64 stack);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
