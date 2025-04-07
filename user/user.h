@@ -1,5 +1,9 @@
 struct stat;
 
+typedef struct lock_t {
+  uint locked;
+} lock_t;
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -41,6 +45,9 @@ int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
 int thread_create(void *start_routine);
 int thread_join(void);
+void lock_init(lock_t *lk);
+void lock_acquire(lock_t *lk);
+void lock_release(lock_t *lk);
 
 // umalloc.c
 void* malloc(uint);
